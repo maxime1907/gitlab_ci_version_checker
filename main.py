@@ -45,6 +45,7 @@ class GitlabChecker:
             except Exception as main_e:
                 logger.debug(f"[P:{str(project.id)}] {main_e}")
                 logger.debug(f"[P:{str(project.id)}] {master_e}")
+                return None
 
         for item in items:
             if item["name"] == filename:
@@ -116,15 +117,28 @@ class GitlabChecker:
 
         return []
 
-    def print_gitlab_file_content(self, project_id, filename) -> None:
+    def print_gitlab_file_content(
+        self, project_id, filename, file_content_grep=None
+    ) -> None:
         project = self.gitlab_api_client.projects.get(project_id)
         gitlab_item = self.get_gitlab_item(project=project, filename=filename)
         content = self.get_gitlab_file_content(project=project, gitlab_item=gitlab_item)
         if content:
             content_decoded = content.decode("utf-8")
-            logger.info(f"[{project.path_with_namespace}] {filename} --- START")
-            logger.info(f"\n{content_decoded}")
-            logger.info(f"[{project.path_with_namespace}] {filename} --- END")
+            found_line_list = []
+            for content_decoded_line in content_decoded.splitlines():
+                if (
+                    file_content_grep is None
+                    or file_content_grep in content_decoded_line
+                ):
+                    found_line_list += [content_decoded_line]
+
+            if found_line_list:
+                found_line_joined = "\n".join(found_line_list)
+                logger.info(
+                    f"[{project.path_with_namespace}] {filename} --- START\n{found_line_joined}"
+                )
+                logger.info(f"[{project.path_with_namespace}] {filename} --- END")
 
 
 @click.command()
@@ -154,12 +168,20 @@ class GitlabChecker:
     required=False,
     default=None,
 )
+@click.option(
+    "--file-content-grep",
+    help="Grep gitlab file-content",
+    type=str,
+    required=False,
+    default=None,
+)
 def run(
     gitlab_config_file: str,
     group_id: int,
     project_id: int,
     common_ci_version: str | None,
     file_content: str | None,
+    file_content_grep: str | None,
 ):
     gitlabChecker = GitlabChecker(gitlab_config_file)
 
@@ -174,7 +196,9 @@ def run(
                 )
             if file_content is not None:
                 gitlabChecker.print_gitlab_file_content(
-                    project_id=project_id, filename=file_content
+                    project_id=project_id,
+                    filename=file_content,
+                    file_content_grep=file_content_grep,
                 )
     elif project_id > -1:
         if common_ci_version is not None:
@@ -183,7 +207,9 @@ def run(
             )
         if file_content is not None:
             gitlabChecker.print_gitlab_file_content(
-                project_id=project_id, filename=file_content
+                project_id=project_id,
+                filename=file_content,
+                file_content_grep=file_content_grep,
             )
     else:
         logger.info("Nothing done")
