@@ -1,13 +1,12 @@
-from typing import Any
-import click
+import base64
 import logging
 import os
-import base64
-import yaml
+from typing import Any
 
-from packaging.version import parse as parse_version
-
+import click
 import gitlab
+import yaml
+from packaging.version import parse as parse_version
 
 logger = logging.getLogger()
 handler = logging.StreamHandler()
@@ -64,7 +63,7 @@ class GitlabChecker:
         return None
 
     def check_gitlab_ci_common_version_by_project_id(
-        self, project_id, gitlab_common_ci_version_check
+        self, project_id, gitlab_common_ci_version_check, invert: bool
     ):
         project = self.gitlab_api_client.projects.get(project_id)
         gitlab_ci_item = self.get_gitlab_item(
@@ -85,14 +84,24 @@ class GitlabChecker:
 
         if gitlab_ci_common_ref != "":
             if gitlab_common_ci_version_check != "":
-                if (
-                    parse_version(gitlab_ci_common_ref)
-                    >= parse_version(gitlab_common_ci_version_check)
-                    or gitlab_ci_common_ref == "master"
+                if not invert and (
+                    gitlab_ci_common_ref == "master"
                     or gitlab_ci_common_ref == "main"
+                    or parse_version(gitlab_ci_common_ref)
+                    >= parse_version(gitlab_common_ci_version_check)
                 ):
                     logger.info(
                         f"[{project.web_url}](#{project.id}) Matched {gitlab_ci_common_ref} >= {gitlab_common_ci_version_check}"
+                    )
+                elif (
+                    invert
+                    and gitlab_ci_common_ref != "master"
+                    and gitlab_ci_common_ref != "main"
+                    and parse_version(gitlab_ci_common_ref)
+                    <= parse_version(gitlab_common_ci_version_check)
+                ):
+                    logger.info(
+                        f"[{project.web_url}](#{project.id}) Matched {gitlab_ci_common_ref} <= {gitlab_common_ci_version_check}"
                     )
             else:
                 logger.info(
@@ -161,6 +170,7 @@ class GitlabChecker:
     required=False,
     default=None,
 )
+@click.option("--invert", help="Compare with <= instead of >=", is_flag=True)
 @click.option(
     "--file-content",
     help="Gitlab file name to print content",
@@ -182,6 +192,7 @@ def run(
     common_ci_version: str | None,
     file_content: str | None,
     file_content_grep: str | None,
+    invert: bool,
 ):
     gitlabChecker = GitlabChecker(gitlab_config_file)
 
@@ -193,6 +204,7 @@ def run(
                 gitlabChecker.check_gitlab_ci_common_version_by_project_id(
                     project_id=project_id,
                     gitlab_common_ci_version_check=common_ci_version,
+                    invert=invert,
                 )
             if file_content is not None:
                 gitlabChecker.print_gitlab_file_content(
