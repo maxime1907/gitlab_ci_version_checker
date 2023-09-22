@@ -185,6 +185,11 @@ class GitlabChecker:
     required=False,
     default=None,
 )
+@click.option(
+    "--skip-archived-project",
+    help="Skip archived projects",
+    is_flag=True,
+)
 def run(
     gitlab_config_file: str,
     group_id: int,
@@ -193,12 +198,15 @@ def run(
     file_content: str | None,
     file_content_grep: str | None,
     invert: bool,
+    skip_archived_project: bool,
 ):
     gitlabChecker = GitlabChecker(gitlab_config_file)
 
     if group_id > -1:
         all_projects = gitlabChecker.get_gitlab_projects_by_group_id(group_id=group_id)
         for project in all_projects:
+            if skip_archived_project and project.archived:
+                continue
             project_id = project.id
             if common_ci_version is not None:
                 gitlabChecker.check_gitlab_ci_common_version_by_project_id(
