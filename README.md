@@ -32,4 +32,5 @@ api_version = 4
 ```
 python3 main.py --group-id 150 --common-ci-version v29.4.0
 python3 main.py --group-id 5 --file-content Dockerfile > out.txt 2>&1
+python3 main.py --group-id 5 --file-content .gitlab-ci.yml --file-content-grep HELM_CHART_VERSION --skip-archived-project
 ```
